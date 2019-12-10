@@ -12,7 +12,7 @@ def get_beat_sync_chroma(audio):
     act = beatrnn()(audio)
     beats = downbeattrack(beats_per_bar=[4, 4], fps=100)(act)
     downbeats = beats[beats[:, 1] == 1][:][:, 0]
-    framed_dbn = np.concatenate([np.array([0]), downbeats, np.array([len(y)/sr])])
+    framed_dbn = np.concatenate([np.array([0]), downbeats ])
     time = np.arange(len(y)) / sr
     chromas = []
     for i in range(1, len(framed_dbn)):
@@ -25,7 +25,9 @@ def get_beat_sync_chroma(audio):
     ax[0].vlines(framed_dbn, -1, 1, colors='r', linestyles='dashdot')
     ax[0].set_xlim(framed_dbn[0], framed_dbn[-1])
     plt.sca(ax[1])
-    plt.pcolor(chromas)
+    plt.pcolor(framed_dbn, np.arange(13), chromas)
+    plt.yticks(np.arange(13)+0.5, ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"])
+    plt.ylim(0, 12)
     plt.show()
     print(tempo)
 
