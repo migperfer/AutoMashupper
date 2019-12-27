@@ -6,6 +6,8 @@ from madmom.features.downbeats import DBNDownBeatTrackingProcessor as downbeattr
 from madmom.features.downbeats import RNNDownBeatProcessor as beatrnn
 import numpy as np
 from scipy.spatial.distance import cdist
+import scipy.stats as st
+import sys
 
 eps = np.finfo(float).eps
 
@@ -55,9 +57,41 @@ def get_beat_sync_chroma(audio):
 
     return chromas, semitones, downbeats, tempo
 
+
+def gkern(kernlen=21, nsig=3):
+    """Returns a 2D Gaussian kernel."""
+    x = np.linspace(-nsig, nsig, kernlen+1)
+    kern1d = np.diff(st.norm.cdf(x))
+    kern2d = np.outer(kern1d, kern1d)
+    return kern2d/kern2d.sum()
+
+
+def gcheckerboard(kernelen=64, nsig=32):
+  """Return a 2D Gaussian checkerboard kernel."""
+  c = np.array([[-1, 1], [1, -1]])
+  intsize = int(np.ceil(kernelen/2))
+  return np.kron(c, np.ones([intsize, intsize])) * gkern(kernelen, nsig)
+
+
+def slidekernelthroughdiagonal(kernel, matrix):
+  """Slide a kernel through a diagonal"""
+  size_kernel = kernel.shape[0]
+  size_matrix = matrix.shape[0]
+  result = np.zeros([size_matrix])
+  for i in range(size_matrix):
+    # Calculate zero padding needed
+    padding_b = -min(i - int(size_kernel/2), 0)
+    padding_a = -min(size_matrix - int(i + size_kernel/2), 0)
+    matrix_selection = matrix[max(0, i-int(size_kernel/2)):min(size_matrix, i+int(size_kernel/2)),max(0, i-int(size_kernel/2)):min(size_matrix, i+int(size_kernel/2))]
+    matrix_padded = np.pad(matrix_selection, [(padding_b, padding_a), (padding_b, padding_a)])
+    result[i] = np.sum(matrix_padded*kernel)
+  return result
+
+
 if __name__ == '__main__':
-    chromas, semitones, downbeats, tempo = get_beat_sync_chroma("veterano.mp3")
-    plt.figure()
-    ss_semitones = cdist(semitones.transpose(), semitones.transpose(), metric='euclidean')
-    plt.pcolor(ss_semitones)
-    plt.show()
+    if len(sys.argv) == 2:    
+        chromas, semitones, downbeats, tempo = get_beat_sync_chroma(sys.argv[1])
+        plt.figure()
+        ss_semitones = cdist(semitones.transpose(), semitones.transpose(), metric='euclidean')
+        plt.pcolor(ss_semitones)
+        plt.show()
