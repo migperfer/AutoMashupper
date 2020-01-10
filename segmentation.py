@@ -21,7 +21,51 @@ def hz_to_pitch(hz_spectrums, sr):
         pitch_spectrums.append(pitch_spectrum/max(pitch_spectrum))
     return np.array(pitch_spectrums).transpose()
 
+
+def get_beat_sync_spectrums(audio):
+    y, sr = core.load(audio, sr=44100)
+    tempo, beats = beat.beat_track(y, sr=sr, start_bpm=110, units='time', trim=False)
+    framed_dbn = np.concatenate([np.array([0]), beats])
+    band1 = (0, 220)
+    band2 = (220, 1760)
+    band3 = (1760, sr / 2)
+    band1list = []
+    band2list = []
+    band3list = []
+    for i in range(1, len(framed_dbn)):
+        fft = abs(np.fft.fft(y[int(framed_dbn[i - 1] * sr):int(framed_dbn[i] * sr)]))
+        freqs = np.fft.fftfreq(len(fft), 1 / sr)
+        band1list.append(np.sum(fft[np.where(np.logical_and(freqs > band1[0], freqs < band1[1]))]))
+        band2list.append(np.sum(fft[np.where(np.logical_and(freqs > band2[0], freqs < band2[1]))]))
+        band3list.append(np.sum(fft[np.where(np.logical_and(freqs > band3[0], freqs < band3[1]))]))
+
+    band1list = np.array(band1list).transpose()
+    band2list = np.array(band2list).transpose()
+    band3list = np.array(band3list).transpose()
+    return np.vstack([band1list, band2list, band3list])
+
+
+def rotate_audio(audio, sr, n_beats):
+  tempo, _ = beat.beat_track(audio, sr=sr, start_bpm=110, units='time', trim=False)
+  samples_rotation = tempo * sr
+  n_rotations = int(samples_rotation * n_beats)
+  return np.roll(audio, n_rotations)
+
 def get_beat_sync_chroma(audio):
+    y, sr = core.load(audio, sr=44100)
+    tempo, beats = beat.beat_track(y, sr=sr, start_bpm=110, units='time', trim=False)
+    framed_dbn = np.concatenate([np.array([0]), beats ])
+
+    # Calculate chroma semitone spectrum
+    chromas = []
+    for i in range(1, len(framed_dbn)):
+        stft = abs(core.stft(y[int(framed_dbn[i-1]*sr):int(framed_dbn[i]*sr)]))
+        chroma = np.mean(feature.chroma_stft(y=None, S=stft**2), axis=1)
+        chromas.append(chroma)
+    chromas = np.array(chromas).transpose()
+    return chromas
+
+def get_dbeat_sync_chroma(audio):
     y, sr = core.load(audio, sr=44100)
     tempo, _ = beat.beat_track(y, sr=sr, start_bpm=110, units='time', trim=False)
     act = beatrnn()(audio)
