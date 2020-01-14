@@ -4,7 +4,7 @@ from segmentation import get_beat_sync_chroma, get_beat_sync_spectrums
 from librosa.output import write_wav
 import glob
 from utilities import mix_songs
-import csv
+import sys
 
 def mashability(base_beat_sync_chroma, base_beat_sync_spec, audio_file_candidate):
     """
@@ -44,21 +44,26 @@ def mashability(base_beat_sync_chroma, base_beat_sync_spec, audio_file_candidate
     p_shift =  6 - np.argmax(h_mas[5:18, offset + b_offset])
     return conv, np.max(res_mash), p_shift, b_offset
 
-if __name__ == '__main__':
-    base_song = "audio_files/looperman-l-0668753-0198063-i-like-kebab.mp3"
+
+def main():
+    if len(sys.argv) < 2:
+        print("Usage: python mashability.py <base_song>")
+        return
+    else:
+        base_song = sys.argv[1]
     base_schroma = get_beat_sync_chroma(base_song)
     base_spec = get_beat_sync_spectrums(base_song)
     songs = glob.glob("audio_files/*.mp3")
     mashabilities = {}
     valid_songs = []
     mashability(base_schroma,
-                   base_spec,
-                   base_song)
+                base_spec,
+                base_song)
     for cand_song in songs:
         try:
             mashabilities[cand_song] = mashability(base_schroma,
-                                                base_spec,
-                                                cand_song)[1:]
+                                                   base_spec,
+                                                   cand_song)[1:]
             valid_songs.append(cand_song)
         except Exception as e:
             print("Skipping song %s, because %s" % (cand_song, str(e)))
@@ -66,18 +71,15 @@ if __name__ == '__main__':
     valid_songs.sort(key=lambda x: mashabilities[x][0], reverse=True)
     top_10 = valid_songs[:10]
 
-    i = 0
-    for cand_song in top_10:
-        out_file = "results/mix%s_mash%s.wav" % (i, mashabilities[cand_song][0])
-        print("%s: %s _ %s" % (out_file, i, cand_song))
-        try:
-            mix = mix_songs(base_song, cand_song, mashabilities[cand_song][2], mashabilities[cand_song][1])
-            write_wav(out_file, mix, 44100)
-        except Exception:
-            pass
-        i = i + 1
-    with open('%s.csv' % base_song.split('/')[-1], 'w') as csvfile:
+    with open(base_song.split('/')[-1].replace('.mp3', '.csv'), 'w') as csvfile:
         csvfile.write("file,mashability,pitch_shift,beat_offset\n")
         for cand_song in top_10:
-            csvfile.write("%s,%s,%s,%s\n" % (cand_song, mashabilities[cand_song][0], mashabilities[cand_song][1],
-                                        mashabilities[cand_song][2]))
+            out_file = "results/%s" % (cand_song.split('/')[-1].replace('.mp3', '.wav'))
+            mix = mix_songs(base_song, cand_song, mashabilities[cand_song][2], mashabilities[cand_song][1])
+            write_wav(out_file, mix, 44100)
+            csvfile.write("%s,%s,%s,%s\n" % (out_file, mashabilities[cand_song][0], mashabilities[cand_song][1],
+                                             mashabilities[cand_song][2]))
+
+
+if __name__ == '__main__':
+    main()

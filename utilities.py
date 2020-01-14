@@ -12,12 +12,14 @@ def rotate_audio(audio, sr, n_beats):
 def adjust_tempo(song, final_tempo):
     actual_tempo, _ = beat.beat_track(song, start_bpm=110, units='time', trim=False)
     stretch_factor = final_tempo/actual_tempo
-    song = stretch(song, stretch_factor)
+    if stretch_factor != 1:
+        song = stretch(song, stretch_factor)
     return song
 
 
 def stretch(x, factor, nfft=2048):
     '''
+    From this repository: https://github.com/gaganbahga/time_stretch
     stretch an audio sequence by a factor using FFT of size nfft converting to frequency domain
     :param x: np.ndarray, audio array in PCM float32 format
     :param factor: float, stretching or shrinking factor, depending on if its > or < 1 respectively
@@ -58,11 +60,6 @@ def mix_songs(main_song, cand_song, beat_offset, pitch_shift):
     if cand_song.ndim == 2:
         cand_song = np.sum(cand_song, axis=1)/2
 
-    final_tempo, _ = beat.beat_track(main_song, start_bpm=110, units='time', trim=False)
-    final_len = len(main_song)
-
-    cand_song = adjust_tempo(cand_song, final_tempo)
     cand_song = effects.pitch_shift(cand_song, sr, -pitch_shift)
-    beat_sr = final_tempo/(60 * sr)  # Number of samples per beat
-    cand_song = cand_song[int(beat_offset*beat_sr):int(beat_offset*beat_sr + final_len)]
-    return cand_song*0.5 + main_song*0.5
+    return cand_song
+
