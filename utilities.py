@@ -1,20 +1,6 @@
 from librosa import effects, core, output
 import numpy as np
 import essentia.standard as estd
-import pyaudio
-
-
-def playaudio(y, sr):
-    p = pyaudio.PyAudio()
-    stream = p.open(format=pyaudio.paFloat32,
-                    channels=1,
-                    rate=44100,
-                    frames_per_buffer=1024,
-                    output=True,
-                    output_device_index=0
-                    )
-    stream.write(y.tostring())
-    stream.close()
 
 
 def zapata14bpm(y):
@@ -24,6 +10,12 @@ def zapata14bpm(y):
 
 
 def self_tempo_estimation(y, sr):
+    """
+    A function to calculate tempo based on a confidence measure
+    :param y: The audio signal to which calculate the tempo
+    :param sr: The sample rate of the signal
+    :return: An array containing tempo, and an array of beats (in seconds)
+    """
     confidence_estimator = estd.LoopBpmConfidence(sampleRate=sr)
     percivalbpm = int(estd.PercivalBpmEstimator(sampleRate=sr)(y))
     zapatabpm = int(zapata14bpm(y))
@@ -33,20 +25,32 @@ def self_tempo_estimation(y, sr):
         tempo = percivalbpm
     else:
         tempo = zapatabpm
-
     sec_beat = (60/tempo)
     beats = np.arange(0, len(y)/sr, sec_beat)
     return tempo, beats
 
 
 def rotate_audio(audio, sr, n_beats):
-    tempo, _ = self_tempo_estimation(audio, sr)
+    """
+    Apply rotation to the audio in a given number of beats
+    :param audio: The audio signal to rotate
+    :param sr: The sample rate
+    :param n_beats: Number of beats to rotate the audio
+    :return:
+    """
+    tempo, _ = self_tempo_estimation(y, sr)
     samples_rotation = tempo * sr
     n_rotations = int(samples_rotation * n_beats)
     return np.roll(audio, n_rotations)
 
 
 def adjust_tempo(song, final_tempo):
+    """
+    Adjust audio to the desired tempo
+    :param song: The song which tempo should be adjusted
+    :param final_tempo:
+    :return:
+    """
     actual_tempo, _ = self_tempo_estimation(song, 44100)
     stretch_factor = final_tempo/actual_tempo
     if stretch_factor != 1:
@@ -88,6 +92,14 @@ def stretch(x, factor, nfft=2048):
 
 
 def mix_songs(main_song, cand_song, beat_offset, pitch_shift):
+    """
+    Mixes two loops with a given beat_offset and a pitch_shift (applied to the candidate song)
+    :param main_song: The path to the main loop
+    :param cand_song: The path to the candidate loop
+    :param beat_offset: The beat offset
+    :param pitch_shift: The pitch shift
+    :return: The resulting signal of the audio mixing with sr=44100
+    """
     sr = 44100
     main_song, _ = core.load(main_song, sr=sr)
     cand_song, _ = core.load(cand_song, sr=sr)

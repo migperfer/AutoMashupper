@@ -12,6 +12,12 @@ import sys
 eps = np.finfo(float).eps
 
 def hz_to_pitch(hz_spectrums, sr):
+    """
+    Get a spectrogram in hz and return a spectrogram in pitch
+    :param hz_spectrums: The freq spectrum
+    :param sr: The sample rate of the spectrum
+    :return: A pitch-spectrogram
+    """
     pitch_spectrums = []
     freq_scale = np.fft.fftfreq(hz_spectrums.shape[0])
     for hz_spectrum in hz_spectrums:
@@ -23,6 +29,11 @@ def hz_to_pitch(hz_spectrums, sr):
 
 
 def get_beat_sync_spectrums(audio):
+    """
+    Returns a beat-sync 3-energy-band spectrogram
+    :param audio: Path to the song
+    :return: Array containing energy in band1, band2, band3
+    """
     y, sr = core.load(audio, sr=44100)
     tempo, framed_dbn = self_tempo_estimation(y, sr)
     band1 = (0, 220)
@@ -43,14 +54,12 @@ def get_beat_sync_spectrums(audio):
     band3list = np.array(band3list).transpose()
     return np.vstack([band1list, band2list, band3list])
 
-
-def rotate_audio(audio, sr, n_beats):
-  tempo, _ = self_tempo_estimation(y, sr)
-  samples_rotation = tempo * sr
-  n_rotations = int(samples_rotation * n_beats)
-  return np.roll(audio, n_rotations)
-
 def get_beat_sync_chroma(audio):
+    """
+    Get a beat synchronous chroma
+    :param audio: The path to the audio file
+    :return: A beat synchronous chroma
+    """
     y, sr = core.load(audio, sr=44100)
     tempo, framed_dbn = self_tempo_estimation(y, sr)
 
@@ -63,7 +72,13 @@ def get_beat_sync_chroma(audio):
     chromas = np.array(chromas).transpose()
     return chromas
 
+
 def get_dbeat_sync_chroma(audio):
+    """
+    Get a downbeat synchronous chroma
+    :param audio: The path to the audio file
+    :return: A downbeat synchronous chroma
+    """
     y, sr = core.load(audio, sr=44100)
     tempo, beats = self_tempo_estimation(y, sr)
     act = beatrnn()(audio)
