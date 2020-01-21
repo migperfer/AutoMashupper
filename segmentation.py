@@ -1,4 +1,4 @@
-from librosa import beat
+from utilities import self_tempo_estimation
 from librosa import core
 from librosa import feature
 import matplotlib.pyplot as plt
@@ -24,8 +24,7 @@ def hz_to_pitch(hz_spectrums, sr):
 
 def get_beat_sync_spectrums(audio):
     y, sr = core.load(audio, sr=44100)
-    tempo, beats = beat.beat_track(y, sr=sr, start_bpm=110, units='time', trim=False)
-    framed_dbn = np.concatenate([np.array([0]), beats])
+    tempo, framed_dbn = self_tempo_estimation(y, sr)
     band1 = (0, 220)
     band2 = (220, 1760)
     band3 = (1760, sr / 2)
@@ -46,15 +45,14 @@ def get_beat_sync_spectrums(audio):
 
 
 def rotate_audio(audio, sr, n_beats):
-  tempo, _ = beat.beat_track(audio, sr=sr, start_bpm=110, units='time', trim=False)
+  tempo, _ = self_tempo_estimation(y, sr)
   samples_rotation = tempo * sr
   n_rotations = int(samples_rotation * n_beats)
   return np.roll(audio, n_rotations)
 
 def get_beat_sync_chroma(audio):
     y, sr = core.load(audio, sr=44100)
-    tempo, beats = beat.beat_track(y, sr=sr, start_bpm=110, units='time', trim=False)
-    framed_dbn = np.concatenate([np.array([0]), beats ])
+    tempo, framed_dbn = self_tempo_estimation(y, sr)
 
     # Calculate chroma semitone spectrum
     chromas = []
@@ -67,7 +65,7 @@ def get_beat_sync_chroma(audio):
 
 def get_dbeat_sync_chroma(audio):
     y, sr = core.load(audio, sr=44100)
-    tempo, _ = beat.beat_track(y, sr=sr, start_bpm=110, units='time', trim=False)
+    tempo, beats = self_tempo_estimation(y, sr)
     act = beatrnn()(audio)
     beats = downbeattrack(beats_per_bar=[4, 4], fps=100)(act)
     downbeats = beats[beats[:, 1] == 1][:][:, 0]

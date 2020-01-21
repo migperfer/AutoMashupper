@@ -1,16 +1,53 @@
-from librosa import beat, effects, core, output
+from librosa import effects, core, output
 import numpy as np
-import glob
+import essentia.standard as estd
+import pyaudio
+
+
+def playaudio(y, sr):
+    p = pyaudio.PyAudio()
+    stream = p.open(format=pyaudio.paFloat32,
+                    channels=1,
+                    rate=44100,
+                    frames_per_buffer=1024,
+                    output=True,
+                    output_device_index=0
+                    )
+    stream.write(y.tostring())
+    stream.close()
+
+
+def zapata14bpm(y):
+    essentia_beat = estd.BeatTrackerMultiFeature()
+    mean_tick_distance = np.mean(np.diff(essentia_beat(y)[0]))
+    return 60/mean_tick_distance
+
+
+def self_tempo_estimation(y, sr):
+    confidence_estimator = estd.LoopBpmConfidence(sampleRate=sr)
+    percivalbpm = int(estd.PercivalBpmEstimator(sampleRate=sr)(y))
+    zapatabpm = int(zapata14bpm(y))
+    confidence_zapata = confidence_estimator(y, zapatabpm)
+    confidence_percival = confidence_estimator(y, percivalbpm)
+    if confidence_percival >= confidence_zapata:
+        tempo = percivalbpm
+    else:
+        tempo = zapatabpm
+
+    sec_beat = (60/tempo)
+    beats = np.arange(0, len(y)/sr, sec_beat)
+    return tempo, beats
+
 
 def rotate_audio(audio, sr, n_beats):
-    tempo, _ = beat.beat_track(audio, sr=sr, start_bpm=110, units='time', trim=False)
+    tempo, _ = self_tempo_estimation(audio, sr)
     samples_rotation = tempo * sr
     n_rotations = int(samples_rotation * n_beats)
     return np.roll(audio, n_rotations)
 
 
 def adjust_tempo(song, final_tempo):
-    actual_tempo, _ = beat.beat_track(song, start_bpm=110, units='time', trim=False)
+    actual_tempo, _ = self_tempo_estimation(song, 44100)
     stretch_factor = final_tempo/actual_tempo
     if stretch_factor != 1:
         song = stretch(song, stretch_factor)
@@ -60,6 +97,22 @@ def mix_songs(main_song, cand_song, beat_offset, pitch_shift):
     if cand_song.ndim == 2:
         cand_song = np.sum(cand_song, axis=1)/2
 
+    final_tempo, _ = self_tempo_estimation(main_song, sr)
+    final_len = len(main_song)
+
+    cand_song = adjust_tempo(cand_song, final_tempo)
     cand_song = effects.pitch_shift(cand_song, sr, -pitch_shift)
-    return cand_song
+    beat_sr = final_tempo/(60 * sr)  # Number of samples per beat
+    cand_song = cand_song[int(beat_offset*beat_sr):int(beat_offset*beat_sr + final_len)]
+    cand_song = core.resample(cand_song, 44100, 44100 / cand_song.shape[0] * main_song.shape[0])
+    try:
+        aux = np.zeros(main_song.shape[0])
+        aux[:cand_song.shape[0]] = cand_song
+        cand_song = aux
+    except ValueError:
+        aux = np.zeros(cand_song.shape[0])
+        aux[:main_song.shape[0]] = main_song
+        main_song = aux
+
+    return cand_song*0.5 + main_song*0.5
 

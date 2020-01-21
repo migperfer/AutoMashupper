@@ -4,7 +4,7 @@ from segmentation import get_beat_sync_chroma, get_beat_sync_spectrums
 from librosa.output import write_wav
 import glob
 from utilities import mix_songs
-import sys
+import sys, csv, shutil
 
 def mashability(base_beat_sync_chroma, base_beat_sync_spec, audio_file_candidate):
     """
@@ -35,7 +35,7 @@ def mashability(base_beat_sync_chroma, base_beat_sync_spec, audio_file_candidate
             beta_norm = beta/np.sum(beta)
             r_mas_k[i] = 1 - np.std(beta_norm)
     else:
-        raise Exception("Candidate song has lesser beats than base song")
+        raise ValueError("Candidate song has lesser beats than base song")
 
 
     res_mash = h_mas_k + 0.2 * r_mas_k
@@ -49,37 +49,47 @@ def main():
     if len(sys.argv) < 2:
         print("Usage: python mashability.py <base_song>")
         return
-    else:
+    elif '-p' not in sys.argv:
         base_song = sys.argv[1]
-    base_schroma = get_beat_sync_chroma(base_song)
-    base_spec = get_beat_sync_spectrums(base_song)
-    songs = glob.glob("audio_files/*.mp3")
-    mashabilities = {}
-    valid_songs = []
-    mashability(base_schroma,
-                base_spec,
-                base_song)
-    for cand_song in songs:
-        try:
-            mashabilities[cand_song] = mashability(base_schroma,
-                                                   base_spec,
-                                                   cand_song)[1:]
-            valid_songs.append(cand_song)
-        except Exception as e:
-            print("Skipping song %s, because %s" % (cand_song, str(e)))
+        base_schroma = get_beat_sync_chroma(base_song)
+        base_spec = get_beat_sync_spectrums(base_song)
+        songs = glob.glob("audio_files/*.mp3")
+        mashabilities = {}
+        valid_songs = []
+        mashability(base_schroma,
+                    base_spec,
+                    base_song)
+        for cand_song in songs:
+            try:
+                mashabilities[cand_song] = mashability(base_schroma,
+                                                       base_spec,
+                                                       cand_song)[1:]
+                valid_songs.append(cand_song)
+            except ValueError as e:
+                print("Skipping song %s, because %s" % (cand_song, str(e)))
 
-    valid_songs.sort(key=lambda x: mashabilities[x][0], reverse=True)
-    top_10 = valid_songs[:10]
+        valid_songs.sort(key=lambda x: mashabilities[x][0], reverse=True)
+        top_10 = valid_songs[:10]
 
-    with open(base_song.split('/')[-1].replace('.mp3', '.csv'), 'w') as csvfile:
-        csvfile.write("file,mashability,pitch_shift,beat_offset\n")
-        for cand_song in top_10:
-            out_file = "results/%s" % (cand_song.split('/')[-1].replace('.mp3', '.wav'))
-            mix = mix_songs(base_song, cand_song, mashabilities[cand_song][2], mashabilities[cand_song][1])
+        with open(base_song.split('/')[-1].replace('.mp3', '.csv'), 'w') as csvfile:
+            csvfile.write("file,mashability,pitch_shift,beat_offset\n")
+            for cand_song in top_10:
+                out_file = "audio_files/%s" % (cand_song.split('/')[-1])
+                csvfile.write("%s,%s,%s,%s\n" % (out_file, mashabilities[cand_song][0], mashabilities[cand_song][1],
+                                                 mashabilities[cand_song][2]))
+    base_song = sys.argv[1]
+    with open(base_song.split('/')[-1].replace('.mp3', '.csv'), 'r') as csvfile:
+        csv_reader = csv.DictReader(csvfile)
+        for row in csv_reader:
+            cand_song = row['file']
+            pitch_shift = int(row['pitch_shift'])
+            beat_offset = int(row['beat_offset'])
+            mix = mix_songs(base_song, cand_song, beat_offset, pitch_shift)
+            out_file = "results/%s_MIXED_%s" % (row['mashability'], cand_song.split('/')[-1].replace('.mp3', '.wav'))
+            # Copy the original candidate to the results folder
+            original_cand_copy = "results/ORIGINAL_%s" % (cand_song.split('/')[-1])
+            shutil.copyfile(cand_song, original_cand_copy)
             write_wav(out_file, mix, 44100)
-            csvfile.write("%s,%s,%s,%s\n" % (out_file, mashabilities[cand_song][0], mashabilities[cand_song][1],
-                                             mashabilities[cand_song][2]))
-
 
 if __name__ == '__main__':
     main()
