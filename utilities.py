@@ -1,6 +1,7 @@
 from librosa import effects, core, output
 import numpy as np
 import essentia.standard as estd
+from pyrubberband import pyrb
 
 
 def zapata14bpm(y):
@@ -52,9 +53,12 @@ def adjust_tempo(song, final_tempo):
     :return:
     """
     actual_tempo, _ = self_tempo_estimation(song, 44100)
+    song = pyrb.change_tempo(song, 44100, actual_tempo, final_tempo)
+    """
     stretch_factor = final_tempo/actual_tempo
     if stretch_factor != 1:
-        song = stretch(song, stretch_factor)
+    song = stretch(song, stretch_factor)
+    """
     return song
 
 
@@ -101,21 +105,21 @@ def mix_songs(main_song, cand_song, beat_offset, pitch_shift):
     :return: The resulting signal of the audio mixing with sr=44100
     """
     sr = 44100
-    main_song, _ = core.load(main_song, sr=sr)
-    cand_song, _ = core.load(cand_song, sr=sr)
+    main_song, _ = core.load(main_song, sr=sr, mono=True)
+    cand_song, _ = core.load(cand_song, sr=sr, mono=True)
     #Make everything mono
-    if main_song.ndim == 2:
-        main_song = np.sum(main_song, axis=1)/2
-    if cand_song.ndim == 2:
-        cand_song = np.sum(cand_song, axis=1)/2
-
     final_tempo, _ = self_tempo_estimation(main_song, sr)
     final_len = len(main_song)
 
-    cand_song = adjust_tempo(cand_song, final_tempo)
-    cand_song = effects.pitch_shift(cand_song, sr, -pitch_shift)
     beat_sr = final_tempo/(60 * sr)  # Number of samples per beat
     cand_song = cand_song[int(beat_offset*beat_sr):int(beat_offset*beat_sr + final_len)]
+    # cand_song = effects.pitch_shift(cand_song, sr, -pitch_shift)
+    tunning = np.mean(estd.TuningFrequencyExtractor()(cand_song))
+    tunning_main = np.mean(estd.TuningFrequencyExtractor()(main_song))
+    cand_song = adjust_tempo(cand_song, final_tempo)
+    factor_tuning = tunning/tunning_main
+    pitch_factor = factor_tuning*np.exp2(pitch_shift/12)
+    cand_song = pyrb.frequency_multiply(cand_song, 44100, pitch_factor)
     cand_song = core.resample(cand_song, 44100, 44100 / cand_song.shape[0] * main_song.shape[0])
     try:
         aux = np.zeros(main_song.shape[0])
@@ -125,6 +129,8 @@ def mix_songs(main_song, cand_song, beat_offset, pitch_shift):
         aux = np.zeros(cand_song.shape[0])
         aux[:main_song.shape[0]] = main_song
         main_song = aux
-
+    cand_song = cand_song.astype('float32')
+    # main_song_replaygain = estd.ReplayGain()(main_song)
+    # cand_song = estd.EqloudLoader(replayGain=main_song_replaygain)(cand_song)
     return cand_song*0.5 + main_song*0.5
 
