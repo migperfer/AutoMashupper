@@ -28,6 +28,37 @@ def hz_to_pitch(hz_spectrums, sr):
     return np.array(pitch_spectrums).transpose()
 
 
+def get_beat_sync_chroma_and_spectrum(audio):
+    """
+    Returns the beat_sync_chroma and the beat_sync_spectrums
+    :param audio: Path to the song
+    :return: (beat_sync_chroma, beat_sync_spec)
+    """
+    y, sr = core.load(audio, sr=44100)
+    tempo, framed_dbn = self_tempo_estimation(y, sr)
+    band1 = (0, 220)
+    band2 = (220, 1760)
+    band3 = (1760, sr / 2)
+    band1list = []
+    band2list = []
+    band3list = []
+    chromas = []
+    for i in range(1, len(framed_dbn)):
+        fft = abs(np.fft.fft(y[int(framed_dbn[i - 1] * sr):int(framed_dbn[i] * sr)]))
+        freqs = np.fft.fftfreq(len(fft), 1 / sr)
+        band1list.append(np.sum(fft[np.where(np.logical_and(freqs > band1[0], freqs < band1[1]))]))
+        band2list.append(np.sum(fft[np.where(np.logical_and(freqs > band2[0], freqs < band2[1]))]))
+        band3list.append(np.sum(fft[np.where(np.logical_and(freqs > band3[0], freqs < band3[1]))]))
+        stft = abs(core.stft(y[int(framed_dbn[i - 1] * sr):int(framed_dbn[i] * sr)]))
+        chroma = np.mean(feature.chroma_stft(y=None, S=stft ** 2), axis=1)
+        chromas.append(chroma)
+    chromas = np.array(chromas).transpose()
+    band1list = np.array(band1list).transpose()
+    band2list = np.array(band2list).transpose()
+    band3list = np.array(band3list).transpose()
+    return (chromas, np.vstack([band1list, band2list, band3list]))
+
+
 def get_beat_sync_spectrums(audio):
     """
     Returns a beat-sync 3-energy-band spectrogram
@@ -53,6 +84,7 @@ def get_beat_sync_spectrums(audio):
     band2list = np.array(band2list).transpose()
     band3list = np.array(band3list).transpose()
     return np.vstack([band1list, band2list, band3list])
+
 
 def get_beat_sync_chroma(audio):
     """
