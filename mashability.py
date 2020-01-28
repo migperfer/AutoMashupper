@@ -32,7 +32,8 @@ def mashability(base_beat_sync_chroma, base_beat_sync_spec, audio_file_candidate
     cand_n = np.linalg.norm(c_bsc)
     h_mas = conv / (base_n * cand_n)
     offset = base_beat_sync_chroma.shape[1]-1
-    h_mas_k = np.max(h_mas[:, offset:-offset], axis=0)  # Maximum mashability for each beat displacement
+    h_mas = np.flip(h_mas[11:-11, offset:-offset], axis=0)
+    h_mas_k = np.max(h_mas, axis=0)  # Maximum mashability for each beat displacement
 
     # 3rd step: Calculate Spectral balance compatibility
     if c_bss.shape[1] >= base_beat_sync_spec.shape[1]:
@@ -48,7 +49,9 @@ def mashability(base_beat_sync_chroma, base_beat_sync_spec, audio_file_candidate
     res_mash = h_mas_k + 0.2 * r_mas_k
 
     b_offset = np.argmax(res_mash)
-    p_shift = 6 - np.argmax(h_mas[5:18, offset + b_offset])  # 5:18 remove unnecessary parts of the pitch shift
+    p_shift = np.argmax(h_mas[:, b_offset])
+    if p_shift > 6:
+        p_shift = 12 - p_shift
     return np.max(res_mash), p_shift, b_offset
 
 

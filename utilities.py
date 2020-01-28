@@ -118,7 +118,7 @@ def mix_songs(main_song, cand_song, beat_offset, pitch_shift):
     tunning_main = np.mean(estd.TuningFrequencyExtractor()(main_song))
     cand_song = adjust_tempo(cand_song, final_tempo)
     factor_tuning = tunning/tunning_main
-    pitch_factor = factor_tuning*np.exp2(pitch_shift/12)
+    pitch_factor = factor_tuning*np.exp2(-pitch_shift/12)
     cand_song = pyrb.frequency_multiply(cand_song, 44100, pitch_factor)
     cand_song = core.resample(cand_song, 44100, 44100 / cand_song.shape[0] * main_song.shape[0])
     try:
