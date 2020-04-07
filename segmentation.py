@@ -4,11 +4,11 @@ from librosa import feature
 import matplotlib.pyplot as plt
 from madmom.features.downbeats import DBNDownBeatTrackingProcessor as downbeattrack
 from madmom.features.downbeats import RNNDownBeatProcessor as beatrnn
+import essentia.standard as std
 import numpy as np
 from scipy.spatial.distance import cdist
 import scipy.stats as st
 import sys
-from essentia.standard import EqualLoudness
 from pydub import AudioSegment
 
 
@@ -31,15 +31,21 @@ def hz_to_pitch(hz_spectrums, sr):
     return np.array(pitch_spectrums).transpose()
 
 
-def get_beat_sync_chroma_and_spectrum(audio):
+def get_beat_sync_chroma_and_spectrum(audio, sr=None, bpm=None):
     """
     Returns the beat_sync_chroma and the beat_sync_spectrums
-    :param audio: Path to the song
+    :param audio: Path to the song, or numpy array
+    :param rate: Sample rate in case the audio param is numpy array
+    :param bpm: Precalculated bpm
     :return: (beat_sync_chroma, beat_sync_spec)
     """
-    y, sr = core.load(audio, sr=44100)
-    eql_y = EqualLoudness()(y)
-    tempo, framed_dbn = self_tempo_estimation(y, sr)
+    if not isinstance(audio, np.ndarray):
+        sr = 44100
+        y = std.MonoLoader(filename=audio, samplerate=44100)()
+    else:
+        y = audio
+    eql_y = std.EqualLoudness()(y)
+    tempo, framed_dbn = self_tempo_estimation(y, sr, tempo=bpm)
     if framed_dbn.shape[0] % 4 == 0:
         framed_dbn = np.append(framed_dbn, np.array(len(y)/sr))
     band1 = (0, 220)

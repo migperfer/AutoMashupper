@@ -15,26 +15,28 @@ def zapata14bpm(y):
     return 60/mean_tick_distance
 
 
-def self_tempo_estimation(y, sr):
+def self_tempo_estimation(y, sr, tempo=None):
     """
     A function to calculate tempo based on a confidence measure
     :param y: The audio signal to which calculate the tempo
     :param sr: The sample rate of the signal
+    :param tempo: Precalculated bpm
     :return: An array containing tempo, and an array of beats (in seconds)
     """
-    confidence_estimator = estd.LoopBpmConfidence(sampleRate=sr)
-    percivalbpm = int(estd.PercivalBpmEstimator(sampleRate=sr)(y))
-    try:
-        zapatabpm = int(zapata14bpm(y))
-    except:
-        tempo = percivalbpm
-    else:
-        confidence_zapata = confidence_estimator(y, zapatabpm)
-        confidence_percival = confidence_estimator(y, percivalbpm)
-        if confidence_percival >= confidence_zapata:
+    if tempo is None:
+        confidence_estimator = estd.LoopBpmConfidence(sampleRate=sr)
+        percivalbpm = int(estd.PercivalBpmEstimator(sampleRate=sr)(y))
+        try:
+            zapatabpm = int(zapata14bpm(y))
+        except:
             tempo = percivalbpm
         else:
-            tempo = zapatabpm
+            confidence_zapata = confidence_estimator(y, zapatabpm)
+            confidence_percival = confidence_estimator(y, percivalbpm)
+            if confidence_percival >= confidence_zapata:
+                tempo = percivalbpm
+            else:
+                tempo = zapatabpm
     sec_beat = (60/tempo)
     beats = np.arange(0, len(y)/sr, sec_beat)
     return tempo, beats
